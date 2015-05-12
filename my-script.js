@@ -1,6 +1,6 @@
 /* Hangman namespace */
 var Hangman = {};
-Hangman.secret = null;
+Hangman.sessionId = null;
 Hangman.charactersGuessed = [];
 Hangman.excepts = "";
 Hangman.score = 0;
@@ -17,6 +17,7 @@ function HttpPost(url, data, success, fail) {
         req = new ActiveXObject("Microsoft.XMLHTTP");
     }
 
+    console.log(data);
     req.open("POST", url, true);
     req.setRequestHeader("Content-type", "application/json");
     req.onreadystatechange = function (aEvt) {
@@ -37,6 +38,7 @@ function GetJson(url, data) {
         req = new ActiveXObject("Microsoft.XMLHTTP");
     }
 
+    console.log(data);
     req.open("POST", url, false);
     req.setRequestHeader("Content-type", "application/json");
     req.send(data);
@@ -44,6 +46,7 @@ function GetJson(url, data) {
         if (req.status == 200) return (JSON.parse(req.responseText));
         else alert("Error loading page\n");
     }
+    console.log(req.responseText);
 }
 
 function ReplaceAll(Source, stringToFind, stringToReplace) {
@@ -210,68 +213,67 @@ function AutoStart() {
         return false;
     }
     for (var count = 0; count < retryTimes; count++) {
-        var userId = "cagegong@163.com",
-            url = "http://strikingly-interview-test.herokuapp.com/guess/process",
+        var playerId = "akoli0082@gmail.com",
+            url = "https://strikingly-hangman.herokuapp.com/game/on",
             initData = {
-                "action": "initiateGame",
-                    "userId": userId
+                "action": "startGame",
+                "playerId": playerId
             },
             initResult = GetJson(url, JSON.stringify(initData)); // Initialize game
         Hangman.score = 0;
-        Hangman.secret = initResult.secret;
+        Hangman.sessionId = initResult.sessionId;
         for (var i = 0; i < initResult.data.numberOfWordsToGuess; i++) {
             console.log("No.: " + i);
             var nextWordRequest = {
                 "action": "nextWord",
-                    "userId": userId,
-                    "secret": Hangman.secret
+                "sessionId": Hangman.sessionId
             };
             var nextWordResult = GetJson(url, JSON.stringify(nextWordRequest)), // Get next word
-                numberOfGuessAllowedForThisWord = nextWordResult.data.numberOfGuessAllowedForThisWord,
-                currentWord = nextWordResult.word;
+                numberOfGuessAllowedForEachWord = initResult.data.numberOfGuessAllowedForEachWord,
+                currentWord = nextWordResult.data.word;
             Hangman.excepts = "";
-            while (numberOfGuessAllowedForThisWord > 0) {
+            while (numberOfGuessAllowedForEachWord > 0) {
                 var guessChar = getSuggestion(currentWord, Hangman.excepts); // Get suggested character
                 var guessRequest = {
                     "action": "guessWord",
-                        "guess": guessChar,
-                        "userId": userId,
-                        "secret": Hangman.secret
+                    "guess": guessChar,
+                    "sessionId": Hangman.sessionId
                 };
                 var guessResult = GetJson(url, JSON.stringify(guessRequest)); // Make a guess
-                currentWord = guessResult.word;
-                console.log("guess: " + guessResult.word);
-                if (!haveCharsIn(guessResult.word, guessChar)) {
+                currentWord = guessResult.data.word;
+                console.log("guess: " + guessResult.data.word);
+                if (!haveCharsIn(guessResult.data.word, guessChar)) {
                     // Put the wrong character into except list
                     Hangman.excepts += guessChar;
                     console.log("Excepts: " + Hangman.excepts);
                 }
-                if (!haveCharsIn(guessResult.word, "*")) {
+                if (!haveCharsIn(guessResult.data.word, "*")) {
                     // Guess success
-                    console.log("Success: " + guessResult.word);
+                    console.log("Success: " + guessResult.data.word);
                     Hangman.score++;
                     break;
                 }
-                numberOfGuessAllowedForThisWord = guessResult.data.numberOfGuessAllowedForThisWord;
+                //numberOfGuessAllowedForEachWord--;
+                //numberOfGuessAllowedForEachWord = initResult.data.numberOfGuessAllowedForEachWord;
             }
             if (i + 1 - Hangman.score >= initResult.data.numberOfWordsToGuess - Hangman.bestScore) {
                 // In this case, it will never exceed the best score, so try again.
                 break;
             }
+            console.log(GetJson(url, JSON.stringify({"sessionId":Hangman.sessionId,"action":"getResult"})));
         }
         if (Hangman.bestScore < Hangman.score) {
             // Only submit when the current score is bigger than the ever best score.
             console.log("Score: " + Hangman.score);
             var submitRequest = {
-                "action": "submitTestResults",
-                    "userId": userId,
-                    "secret": Hangman.secret
+                "action": "submitResult",
+                "sessionId": Hangman.sessionId
             },
             submitResult = GetJson(url, JSON.stringify(submitRequest));
-            Hangman.bestScore = submitResult.data.numberOfCorrectWords;
+            Hangman.bestScore = submitResult.data.correctWordCount;
             $("#targetScore").val(Hangman.bestScore);
             Hangman.results.push(submitResult);
-            $("#score").text(submitResult.data.totalScore);
+            $("#score").text(submitResult.data.score);
         }
     }
     $("#mask").hide();
